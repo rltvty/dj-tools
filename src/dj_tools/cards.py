@@ -4,6 +4,13 @@ from mutagen.mp3 import MP3
 from mutagen.id3 import ID3, APIC, POPM
 from typing import  Any
 
+from .field_layout import FieldLayout
+
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+
+from reportlab.lib import colors
+
 # Mapping from Camelot to Open Key
 camelot_to_open = {
     "1A": "8d", "2A": "9d", "3A": "10d", "4A": "11d", "5A": "12d", "6A": "1d",
@@ -115,6 +122,8 @@ def extract_mp3_metadata(file_path: str) -> dict[str, Any]:
         "RVA2", # Relative volume adjustment (serato gain)
         "TPOS", # Part of set
         "TCMP", # iTunes Compilation Flag 
+        "TCOM", # Composer
+        "TXXX:ALBUM ARTIST",
         "TXXX:SERATO_PLAYCOUNT",
         "TXXX:TRACK_URL",
         "TXXX:LABEL_URL",
@@ -153,11 +162,9 @@ def extract_mp3_metadata(file_path: str) -> dict[str, Any]:
             
             # Extract common metadata    
             metadata["title"] = get_tag("TIT2")
-            metadata["artist"] = get_tag("TPE1")
+            metadata["artist"] = get_tag("TPE1") or get_tag("TXXX:ALBUM ARTIST")
             metadata["additional_artists"] = get_tag("TPE2")
-            metadata["album_artist"] = get_tag("TXXX:ALBUM ARTIST")
             metadata["original_artist"] = get_tag("TOPE")
-            metadata["composer"] = get_tag("TCOM")
             metadata["remixer"] = get_tag("TPE4") or get_tag("TXXX:TraktorRemixer")
             metadata["album"] = get_tag("TALB")
             metadata["original_album"] = get_tag("TOAL")
@@ -172,8 +179,6 @@ def extract_mp3_metadata(file_path: str) -> dict[str, Any]:
             metadata["user_comment"] = get_tag("COMM::eng") or get_tag("TXXX:COMMENT")
             metadata["user_comment_2"] = get_tag("COMM:ID3v1 Comment:eng")
             metadata["bpm"] = get_tag("TBPM") or get_tag("TXXX:BPM")
-            
-
 
             for key, value in tags.items():
                 skip_key = False
@@ -206,7 +211,7 @@ def clean_metadata(metadata:dict[str, Any]):
     if metadata["original_album"] == metadata["album"]:
         keys_to_remove.add("original_album")
 
-    if metadata["original_artist"] == metadata["artist"]:
+    if metadata["original_artist"] and metadata["original_artist"] in metadata["artist"]:
         keys_to_remove.add("original_artist")
 
     if metadata["additional_artists"] == metadata["artist"]:
@@ -229,6 +234,15 @@ def clean_metadata(metadata:dict[str, Any]):
 
     if len(f"{metadata.get('recording_date', '')}") == 4:
         metadata["release_year"] = metadata.pop("recording_date")
+
+    if not metadata.get("release_date") and metadata.get("release_year"):
+        metadata["release_date"] = metadata.pop("release_year")
+
+    if metadata.get("release_date") and metadata.get("release_year"):
+        metadata.pop("release_year")
+
+    if metadata.get("remixer") and metadata.get("remixer") in metadata.get("title"):
+        metadata.pop("remixer")
 
     rating = metadata.get("rating", 0)
     stars = rating // 51
@@ -254,8 +268,107 @@ def clean_metadata(metadata:dict[str, Any]):
     if "starting_key" in metadata:
         metadata["starting_key"] = convert_open_key_to_camelot(convert_long_key_to_camelot(metadata["starting_key"]))
 
+
+
+field_layouts = [
+    FieldLayout("title", "front", 10, 130, justification="left", font="Helvetica-Bold", font_size=14),
+    FieldLayout("artist", "front", 10, 110, justification="left", font="Helvetica", font_size=12),
+    FieldLayout("bpm", "front", 10, 90, justification="left", font="Helvetica", font_size=10),
+    FieldLayout("starting_key", "front", 10, 70, justification="left", font="Helvetica", font_size=10),
+    FieldLayout("genre", "back", 10, 130, justification="left", font="Helvetica", font_size=10),
+    FieldLayout("label", "back", 10, 110, justification="left", font="Helvetica", font_size=10),
+    FieldLayout("release_date", "back", 10, 90, justification="left", font="Helvetica", font_size=10),
+    FieldLayout("rating", "back", 10, 70, justification="left", font="Helvetica", font_size=10),
+]
+
+
+def create_pdf_with_layout(output_path: str, cards: list[dict], layouts: list[FieldLayout]) -> None:
+    """
+    Generates a PDF with A6 cards laid out on A4 paper, using layout instructions.
+
+    Args:
+        output_path (str): Path to save the generated PDF.
+        cards (list[dict]): List of metadata dictionaries for each card.
+        layouts (list[FieldLayout]): Layout instructions for fields.
+    """
+    PAGE_WIDTH, PAGE_HEIGHT = A4
+    CARD_WIDTH = PAGE_WIDTH / 2
+    CARD_HEIGHT = PAGE_HEIGHT / 2
+
+    pdf = canvas.Canvas(output_path, pagesize=A4)
+
+    def draw_field(field: FieldLayout, data: dict, x_offset: float, y_offset: float) -> None:
+        """Draw a single field on the card."""
+        value = data.get(field.field_name, "")
+        if not value:
+            return  # Skip empty fields
+
+        pdf.setFont(field.font, field.font_size)
+        text_x = x_offset + field.x
+        text_y = y_offset + field.y
+
+        value = str(value)
+
+        if field.justification == "right":
+            text_width = pdf.stringWidth(value, field.font, field.font_size)
+            text_x -= text_width
+        elif field.justification == "center":
+            text_width = pdf.stringWidth(value, field.font, field.font_size)
+            text_x -= text_width / 2
+
+        pdf.drawString(text_x, text_y, value)
+
+    def draw_card_border(x_offset: float, y_offset: float) -> None:
+        """Draw a border for the card with a light gray color and reset drawing properties."""
+        pdf.setStrokeColor(colors.gray)  # Set the stroke color to light gray
+        pdf.setLineWidth(0.5)     # Make the border thinner
+        pdf.rect(x_offset, y_offset, CARD_WIDTH, CARD_HEIGHT, stroke=1, fill=0)
+
+        # Reset to original stroke color and line width
+        pdf.setStrokeColor(colors.black)
+        pdf.setLineWidth(1)
+
+
+    for i in range(0, len(cards), 4):
+        current_cards = cards[i:i + 4]
+
+        # Draw front of the cards
+        for j, card in enumerate(current_cards):
+            x_offset = (j % 2) * CARD_WIDTH
+            y_offset = PAGE_HEIGHT - ((j // 2) + 1) * CARD_HEIGHT
+
+            # Draw border for the card
+            draw_card_border(x_offset, y_offset)
+
+            # Draw fields on the front
+            for field in layouts:
+                if field.side == "front":
+                    draw_field(field, card, x_offset, y_offset)
+
+        pdf.showPage()  # Add new page for the back side
+
+        # Draw back of the cards
+        for j, card in enumerate(current_cards):
+            x_offset = (j % 2) * CARD_WIDTH
+            y_offset = PAGE_HEIGHT - ((j // 2) + 1) * CARD_HEIGHT
+
+            # Draw border for the card
+            draw_card_border(x_offset, y_offset)
+
+            # Draw fields on the back
+            for field in layouts:
+                if field.side == "back":
+                    draw_field(field, card, x_offset, y_offset)
+
+        pdf.showPage()  # Finish the page
+
+    pdf.save()
+
+
 def main():
     files = list_mp3_files("/Users/epinzur/Desktop/Music/Traktor/")
+    all_keys = set()
+    data = []
     for file in files:
         print()
         print(file)
@@ -266,7 +379,14 @@ def main():
         for key in sorted(metadata.keys()):
             if key in ["cover_art"]:
                 continue
+            all_keys.add(key)
             print(f"\t{key}: {metadata[key]}")
+
+        data.append(metadata)
+
+    print(sorted(list(all_keys)))
+
+    create_pdf_with_layout("output_with_layout.pdf", data, field_layouts)
 
 
     # if metadata["cover_art"]:
