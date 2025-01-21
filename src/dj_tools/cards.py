@@ -1,4 +1,5 @@
 from io import BytesIO
+import qrcode
 import os
 
 from mutagen.mp3 import MP3
@@ -13,6 +14,10 @@ from reportlab.lib.utils import ImageReader
 
 
 from reportlab.lib import colors
+
+from PIL import Image, ImageEnhance
+from io import BytesIO
+import numpy as np
 
 # Mapping from Camelot to Open Key
 camelot_to_open = {
@@ -164,6 +169,7 @@ def extract_mp3_metadata(file_path: str) -> dict[str, Any]:
                 return None
             
             # Extract common metadata    
+            metadata["file"] = file_path
             metadata["title"] = get_tag("TIT2")
             metadata["artist"] = get_tag("TPE1") or get_tag("TXXX:ALBUM ARTIST")
             metadata["additional_artists"] = get_tag("TPE2")
@@ -271,20 +277,20 @@ def clean_metadata(metadata:dict[str, Any]):
     if "starting_key" in metadata:
         metadata["starting_key"] = convert_open_key_to_camelot(convert_long_key_to_camelot(metadata["starting_key"]))
 
-def extract_cover_art(apic_data: bytes) -> bytes:
-    """
-    Extracts the raw image data from the APIC tag.
+    search: str = metadata.get("title", "") + " " + metadata.get("artist", "")
 
-    Args:
-        apic_data (bytes): The full data from the APIC tag.
+    search = search.lower()
 
-    Returns:
-        bytes: The raw image data.
-    """
-    # Skip the APIC metadata (mime type, picture type, and description)
-    null_terminator_index = apic_data.find(b'\x00', apic_data.find(b'\x00') + 1)
-    print(f"null_terminator_index: {null_terminator_index}")
-    return apic_data[null_terminator_index + 1:]  # Raw image data starts after the second null byte
+    for char in ["(", ")", ",", "-", "&", "!", "'s"]:
+        search = search.replace(char, "")
+
+    words = []
+    for word in search.split():
+        if word in ["mix", "of", "a", "feat.", "i", "the"]:
+            continue
+        words.append(word)
+
+    metadata["search"] = " ".join(words)
 
 field_layouts = [
     FieldLayout("title", "front", 10, 130, justification="left", font="Helvetica-Bold", font_size=14),
@@ -296,6 +302,54 @@ field_layouts = [
     FieldLayout("release_date", "back", 10, 90, justification="left", font="Helvetica", font_size=10),
     FieldLayout("rating", "back", 10, 70, justification="left", font="Helvetica", font_size=10),
 ]
+
+def is_dark(image_data: bytes, threshold: float = 100.0) -> bool:
+    """
+    Determines if an image is dark based on its average brightness.
+
+    Args:
+        image_data (bytes): The binary image data.
+        threshold (float): Brightness threshold (0-255) to classify as dark.
+
+    Returns:
+        bool: True if the image is dark, False otherwise.
+    """
+    # Load the image from binary data
+    image = Image.open(BytesIO(image_data)).convert("RGB")
+    
+    # Convert to a NumPy array for pixel-level manipulation
+    pixels = np.array(image)
+    
+    # Calculate perceived brightness for each pixel
+    brightness = 0.299 * pixels[..., 0] + 0.587 * pixels[..., 1] + 0.114 * pixels[..., 2]
+    avg_brightness = brightness.mean()
+
+    return avg_brightness < threshold
+
+def lighten_image(image_data: bytes, factor: float = 1.5) -> bytes:
+    """
+    Lightens an image by a specified factor.
+
+    Args:
+        image_data (bytes): The binary image data.
+        factor (float): Brightness enhancement factor (>1.0 for brighter, <1.0 for darker).
+
+    Returns:
+        bytes: The binary data of the lightened image.
+    """
+    # Load the image from binary data
+    image = Image.open(BytesIO(image_data))
+    
+    # Enhance the brightness
+    enhancer = ImageEnhance.Brightness(image)
+    lightened_image = enhancer.enhance(factor)
+    
+    # Save the lightened image to a BytesIO object
+    lightened_data = BytesIO()
+    lightened_image.save(lightened_data, format=image.format)
+    lightened_data.seek(0)
+
+    return lightened_data.getvalue()
 
 
 def create_pdf_with_layout(output_path: str, cards: list[dict], layouts: list[FieldLayout]) -> None:
@@ -344,10 +398,21 @@ def create_pdf_with_layout(output_path: str, cards: list[dict], layouts: list[Fi
         pdf.setStrokeColor(colors.black)
         pdf.setLineWidth(1)
 
-    def draw_cover_art(image_data: bytes, x_offset: float, y_offset: float) -> None:
+    def draw_cover_art(card: dict[str, Any], x_offset: float, y_offset: float) -> None:
         """Draw cover art on the card using binary image data."""
+
+        image_data = card.get("cover_art")
+
         if not image_data:
             return  # Skip if no cover art is provided
+        
+        cycles = 0
+        while is_dark(image_data):
+            cycles += 1
+            print(f"{card.get("title")}: is dark, lightening")
+            image_data = lighten_image(image_data, factor=1.5)
+            if cycles > 2:
+                break
 
         # Define the image size and position
         image_width = CARD_WIDTH / 2  # Fit the image to half the card width
@@ -363,6 +428,64 @@ def create_pdf_with_layout(output_path: str, cards: list[dict], layouts: list[Fi
             print(f"Error drawing image from binary data, {e}")
             exit()
 
+    # Generate QR code for text
+    def generate_qr_code(text: str, size: int = 256) -> BytesIO:
+        """
+        Generates a QR code for the given text with a fixed resolution.
+
+        Args:
+            text (str): The text to encode in the QR code.
+            size (int): The desired pixel size of the QR code (default: 256x256).
+
+        Returns:
+            BytesIO: A file-like object containing the QR code image.
+        """
+        # Version 4 (33x33 grid) with error correction H 
+        # Max of 50 alpha-numeric characters
+        # see: https://www.qrcode.com/en/about/version.html
+        qr = qrcode.QRCode(
+            version=4,  
+            error_correction=qrcode.constants.ERROR_CORRECT_H,
+            box_size=10,  # Base size of each box in the QR code
+            border=4      # Minimum border size (default is 4)
+        )
+        qr.add_data(text[:49])
+        qr.make(fit=True)
+
+        # Render the QR code to an image
+        qr_image = qr.make_image(fill_color="black", back_color="white")
+
+        # Resize the image to ensure fixed resolution
+        qr_image = qr_image.resize((size, size))
+
+        # Save the QR code to a BytesIO object
+        qr_buffer = BytesIO()
+        qr_image.save(qr_buffer, format="PNG")
+        qr_buffer.seek(0)  # Reset file pointer to the beginning
+        return qr_buffer
+
+    # Draw the QR code on the card
+    def draw_qr_code(qr_image: BytesIO, x_offset: float, y_offset: float) -> None:
+        """
+        Draws a QR code on the card.
+
+        Args:
+            qr_image (BytesIO): The file-like object containing the QR code image.
+            x_offset (float): The X-coordinate of the card.
+            y_offset (float): The Y-coordinate of the card.
+        """
+        try:
+            image = ImageReader(qr_image)
+
+            # Define size and position for the QR code
+            qr_size = CARD_WIDTH / 3  # Scale the QR code to fit nicely
+            qr_x = x_offset + (CARD_WIDTH - qr_size) / 2  # Center horizontally
+            qr_y = y_offset + CARD_HEIGHT / 4  # Position in the middle of the back
+
+            pdf.drawImage(image, qr_x, qr_y, width=qr_size, height=qr_size, preserveAspectRatio=True)
+        except Exception as e:
+            print(f"Error drawing QR code: {e}")
+
 
     for i in range(0, len(cards), 4):
         current_cards = cards[i:i + 4]
@@ -375,7 +498,7 @@ def create_pdf_with_layout(output_path: str, cards: list[dict], layouts: list[Fi
             # Draw border for the card
             draw_card_border(x_offset, y_offset)
 
-            draw_cover_art(card.get("cover_art"), x_offset, y_offset)
+            draw_cover_art(card, x_offset, y_offset)
 
             # Draw fields on the front
             for field in layouts:
@@ -391,6 +514,10 @@ def create_pdf_with_layout(output_path: str, cards: list[dict], layouts: list[Fi
 
             # Draw border for the card
             draw_card_border(x_offset, y_offset)
+        
+            title = card.get("search", "<missing>")
+            qr_image = generate_qr_code(title)  # Generate QR code for the track title
+            draw_qr_code(qr_image, x_offset, y_offset)
 
             # Draw fields on the back
             for field in layouts:
@@ -407,28 +534,22 @@ def main():
     all_keys = set()
     data = []
     for file in files:
-        print()
-        print(file)
+        # print()
+        # print(file)
 
         metadata = extract_mp3_metadata(file)
         clean_metadata(metadata)
+
+        # print(f"{len(metadata["search"])}: '{metadata["search"]}'")
 
         for key in sorted(metadata.keys()):
             if key in ["cover_art"]:
                 continue
             all_keys.add(key)
-            print(f"\t{key}: {metadata[key]}")
+            # print(f"\t{key}: {metadata[key]}")
 
         data.append(metadata)
 
-    print(sorted(list(all_keys)))
-
     create_pdf_with_layout("output_with_layout.pdf", data, field_layouts)
 
-
-    # if metadata["cover_art"]:
-    #     with open("cover_art.jpg", "wb") as img_file:
-    #         img_file.write(metadata["cover_art"])
-    #     print("Cover art saved as 'cover_art.jpg'")
-    # else:
-    #     print("No cover art found.")
+    print(f"All metadata fields available: {all_keys}")
