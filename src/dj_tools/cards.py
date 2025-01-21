@@ -1,3 +1,4 @@
+from io import BytesIO
 import os
 
 from mutagen.mp3 import MP3
@@ -8,6 +9,8 @@ from .field_layout import FieldLayout
 
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
+from reportlab.lib.utils import ImageReader
+
 
 from reportlab.lib import colors
 
@@ -268,7 +271,20 @@ def clean_metadata(metadata:dict[str, Any]):
     if "starting_key" in metadata:
         metadata["starting_key"] = convert_open_key_to_camelot(convert_long_key_to_camelot(metadata["starting_key"]))
 
+def extract_cover_art(apic_data: bytes) -> bytes:
+    """
+    Extracts the raw image data from the APIC tag.
 
+    Args:
+        apic_data (bytes): The full data from the APIC tag.
+
+    Returns:
+        bytes: The raw image data.
+    """
+    # Skip the APIC metadata (mime type, picture type, and description)
+    null_terminator_index = apic_data.find(b'\x00', apic_data.find(b'\x00') + 1)
+    print(f"null_terminator_index: {null_terminator_index}")
+    return apic_data[null_terminator_index + 1:]  # Raw image data starts after the second null byte
 
 field_layouts = [
     FieldLayout("title", "front", 10, 130, justification="left", font="Helvetica-Bold", font_size=14),
@@ -328,6 +344,25 @@ def create_pdf_with_layout(output_path: str, cards: list[dict], layouts: list[Fi
         pdf.setStrokeColor(colors.black)
         pdf.setLineWidth(1)
 
+    def draw_cover_art(image_data: bytes, x_offset: float, y_offset: float) -> None:
+        """Draw cover art on the card using binary image data."""
+        if not image_data:
+            return  # Skip if no cover art is provided
+
+        # Define the image size and position
+        image_width = CARD_WIDTH / 2  # Fit the image to half the card width
+        image_height = CARD_HEIGHT / 2
+        image_x = x_offset + (CARD_WIDTH - image_width) / 2  # Center horizontally
+        image_y = y_offset + CARD_HEIGHT - image_height - 10  # Top of the card with padding
+
+        try:
+            image_stream = BytesIO(image_data)
+            image = ImageReader(image_stream)
+            pdf.drawImage(image, image_x, image_y, width=image_width, height=image_height, preserveAspectRatio=True)
+        except Exception as e:
+            print(f"Error drawing image from binary data, {e}")
+            exit()
+
 
     for i in range(0, len(cards), 4):
         current_cards = cards[i:i + 4]
@@ -339,6 +374,8 @@ def create_pdf_with_layout(output_path: str, cards: list[dict], layouts: list[Fi
 
             # Draw border for the card
             draw_card_border(x_offset, y_offset)
+
+            draw_cover_art(card.get("cover_art"), x_offset, y_offset)
 
             # Draw fields on the front
             for field in layouts:
