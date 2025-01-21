@@ -49,7 +49,7 @@ def draw_card_border(pdf: Canvas, x_offset: float, y_offset: float) -> None:
     pdf.setStrokeColor(colors.black)
     pdf.setLineWidth(1)
 
-def draw_cover_art(pdf: Canvas, card: dict[str, Any], x_offset: float, y_offset: float) -> None:
+def draw_cover_art(pdf: Canvas, card: dict[str, Any], x_offset: float, y_offset: float, back: bool = False) -> None:
     """Draw cover art on the card using binary image data."""
 
     image_data = card.get("cover_art")
@@ -65,22 +65,27 @@ def draw_cover_art(pdf: Canvas, card: dict[str, Any], x_offset: float, y_offset:
         if cycles > 2:
             break
 
-    # Define the image size and position
-    image_width = CARD_WIDTH / 2  # Fit the image to half the card width
-    image_height = CARD_HEIGHT / 2
-    image_x = x_offset + (CARD_WIDTH - image_width) / 2  # Center horizontally
-    image_y = y_offset + CARD_HEIGHT - image_height - 10  # Top of the card with padding
+    if back:
+        image_size = CARD_WIDTH * .41
+        padding = CARD_WIDTH / 16
+        image_x = x_offset + padding
+        image_y = y_offset + CARD_HEIGHT - image_size - (padding * 3)  # Top of the card with padding
+    else:
+        image_size = CARD_WIDTH / 8 * 7  
+        padding = CARD_WIDTH / 16
+        image_x = x_offset + padding  # Center horizontally
+        image_y = y_offset + CARD_HEIGHT - image_size - (padding * 3) + 15  # Top of the card with padding
 
     try:
         image_stream = BytesIO(image_data)
         image = ImageReader(image_stream)
-        pdf.drawImage(image, image_x, image_y, width=image_width, height=image_height, preserveAspectRatio=True)
+        pdf.drawImage(image, image_x, image_y, width=image_size, height=image_size, preserveAspectRatio=True, anchor="n")
     except Exception as e:
         print(f"Error drawing image from binary data, {e}")
         exit()
 
 # Draw the QR code on the card
-def draw_qr_code(pdf: Canvas, card: dict[str, Any], x_offset: float, y_offset: float) -> None:
+def draw_qr_code(pdf: Canvas, card: dict[str, Any], x_offset: float, y_offset: float, back: bool = False) -> None:
     """
     Draws a QR code on the card.
 
@@ -95,7 +100,7 @@ def draw_qr_code(pdf: Canvas, card: dict[str, Any], x_offset: float, y_offset: f
         image = ImageReader(qr_image)
 
         # Define size and position for the QR code
-        qr_size = CARD_WIDTH / 3  # Scale the QR code to fit nicely
+        qr_size = CARD_WIDTH * .5 if back else CARD_WIDTH / 3  # Scale the QR code to fit nicely
         qr_x = x_offset + (CARD_WIDTH - qr_size) / 2  # Center horizontally
         qr_y = y_offset + CARD_HEIGHT / 4  # Position in the middle of the back
 

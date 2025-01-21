@@ -154,6 +154,7 @@ def clean_metadata(metadata:dict[str, Any]):
 
     rating = metadata.get("rating", 0)
     stars = rating // 51
+    metadata["stars"] = stars
     metadata["rating"] = "★" * stars if stars > 0 else ""
 
     if not metadata.get("label") and metadata.get("publisher"):
@@ -190,5 +191,7 @@ def clean_metadata(metadata:dict[str, Any]):
         words.append(word)
 
     metadata["search"] = " ".join(words)
+
+    metadata["key_bpm"] = metadata.get("starting_key", "") + " - " + metadata.get("bpm", "")
 
     return metadata
