@@ -21,3 +21,4 @@ build-backend = "hatchling.build"
 [project.scripts]
 scanner = "dj_tools.scanner:scan_qr_code"
 cards = "dj_tools.cards:main"
+add_ids = "dj_tools.add_ids:main"

@@ -1,7 +1,7 @@
 from typing import Any
 
 from mutagen.mp3 import MP3
-from mutagen.id3 import ID3, APIC, POPM
+from mutagen.id3 import ID3, APIC, POPM, UFID
 
 from .key_conversion import (
     convert_long_key_to_camelot,
@@ -23,7 +23,7 @@ def extract_mp3_metadata(file_path: str) -> dict[str, Any]:
         "APIC", # Attached (or linked) Picture
         "PRIV", # Private frame
         "TENC", # Encoder
-        "TSRC", # International Standard Recording Code (ISRC)
+        #"TSRC", # International Standard Recording Code (ISRC)
         "TSSE", # Encoder settings
         "UFID", # Unique file identifier
         "WOAF", # Official File Information
@@ -41,7 +41,7 @@ def extract_mp3_metadata(file_path: str) -> dict[str, Any]:
         "TXXX:TRACK_URL",
         "TXXX:LABEL_URL",
         "TXXX:FILEOWNER",
-        "TXXX:ISRC",
+        #"TXXX:ISRC",
         "TXXX:BPM",
         "TXXX:YEAR",
         "TXXX:FILETYPE",
@@ -73,6 +73,7 @@ def extract_mp3_metadata(file_path: str) -> dict[str, Any]:
             
             # Extract common metadata    
             metadata["file"] = file_path
+            metadata["id"] =  get_tag("TSRC") or get_tag("TXXX:ISRC")
             metadata["title"] = get_tag("TIT2")
             metadata["artist"] = get_tag("TPE1") or get_tag("TXXX:ALBUM ARTIST")
             metadata["additional_artists"] = get_tag("TPE2")
@@ -107,6 +108,10 @@ def extract_mp3_metadata(file_path: str) -> dict[str, Any]:
                     metadata["cover_art"] = tag.data
                 elif isinstance(tag, POPM):  # Popularimeter
                     metadata["rating"] = tag.rating
+                elif isinstance(tag, UFID): # Unique file identifier.
+                    ufid = tag.owner.strip()
+                    if len(ufid) > 0:
+                        metadata["id"] = ufid
 
     except Exception as e:
         print(f"Error extracting metadata from {file_path}: {e}")

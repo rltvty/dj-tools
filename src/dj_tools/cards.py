@@ -1,6 +1,4 @@
-
-import os
-
+from .utils import list_mp3_files
 
 from .field_layout import FieldLayout
 
@@ -39,22 +37,7 @@ field_layouts = [
     FieldLayout("user_comment", "back", 10, CARD_HEIGHT - 200, justification="left", font="Helvetica", font_size=10),
 ]
 
-def list_mp3_files(folder_path: str) -> list[str]:
-    """
-    Lists all MP3 files in the specified folder and its subfolders.
 
-    Args:
-        folder_path (str): The path to the folder to scan.
-
-    Returns:
-        list[str]: A list of paths to MP3 files.
-    """
-    mp3_files = []
-    for root, _, files in os.walk(folder_path):
-        for file in files:
-            if file.lower().endswith('.mp3'):
-                mp3_files.append(os.path.join(root, file))
-    return mp3_files
 
 
 def create_pdf_with_layout(output_path: str, cards: list[dict], layouts: list[FieldLayout]) -> None:
@@ -113,11 +96,16 @@ def main():
     files = list_mp3_files("/Users/epinzur/Desktop/Music/Traktor/")
     all_keys = set()
     data = []
+    all_ids = set()
     for file in files:
         # print()
         # print(file)
 
         metadata = extract_mp3_metadata(file)
+        id = metadata.get("id")
+        if id in all_ids:
+            print(f"Duplicate id: {id} found for {metadata['title']}")
+        all_ids.add(id)
 
         # print(f"{len(metadata["search"])}: '{metadata["search"]}'")
 
@@ -130,6 +118,8 @@ def main():
         if metadata.get("stars", 0) < 4:
             continue
         data.append(metadata)
+    
+    exit()
 
     create_pdf_with_layout("output_with_layout.pdf", data, field_layouts)
 
