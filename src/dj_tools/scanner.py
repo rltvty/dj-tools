@@ -3,6 +3,7 @@ from pyzbar.pyzbar import decode
 import pyperclip
 import numpy as np
 
+
 def scan_qr_code():
     cap = cv2.VideoCapture(0)
     cap.set(cv2.CAP_PROP_FPS, 30)
@@ -35,18 +36,23 @@ def scan_qr_code():
             points = obj.polygon
             if points:
                 # Convert points to a NumPy array
-                pts = np.array([(int(point.x), int(point.y)) for point in points], dtype=np.int32)
-                cv2.polylines(frame, [pts], isClosed=True, color=(0, 255, 0), thickness=3)
+                pts = np.array(
+                    [(int(point.x), int(point.y)) for point in points], dtype=np.int32
+                )
+                cv2.polylines(
+                    frame, [pts], isClosed=True, color=(0, 255, 0), thickness=3
+                )
 
         # Display the frame
         cv2.imshow("QR Code Scanner", frame)
 
         # Press 'q' to exit
-        if cv2.waitKey(1) & 0xFF == ord('q'):
+        if cv2.waitKey(1) & 0xFF == ord("q"):
             break
 
     cap.release()
     cv2.destroyAllWindows()
+
 
 # Run the scanner
 scan_qr_code()

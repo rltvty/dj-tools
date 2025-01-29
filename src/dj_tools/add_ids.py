@@ -23,26 +23,28 @@ def add_ufid_to_mp3(file_path: str) -> None:
     # Ensure the MP3 file has ID3 tags
     if audio.tags is None:
         audio.add_tags()
-    tags: dict[str,Any] = audio.tags
+    tags: dict[str, Any] = audio.tags
 
     def get_tag(tag: str) -> str | None:
         if tag in audio.tags:
             return audio.tags.get(tag).text[0]
         return None
-    
+
     artist = get_tag("TPE1")
     title = get_tag("TIT2")
 
     if artist is None or title is None:
-        raise ValueError(f"File '{file_path}' is missing required metadata (artist and title).")
+        raise ValueError(
+            f"File '{file_path}' is missing required metadata (artist and title)."
+        )
 
     for tag in tags.values():
         if isinstance(tag, UFID):
             if tag.owner and len(tag.owner) > 0:
                 print(f"found UFID: {tag.owner.strip()} for: {artist} - {title}")
                 return
-                
-    ufid_value = hashlib.sha1(f"{artist}|{title}".encode('utf-8')).hexdigest()[:8]
+
+    ufid_value = hashlib.sha1(f"{artist}|{title}".encode("utf-8")).hexdigest()[:8]
     ufid_tag = UFID(owner=f"esp-{ufid_value}")
     audio.tags.add(ufid_tag)
     print(f"added UFID: {ufid_tag.owner} for: {artist} - {title}")

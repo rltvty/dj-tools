@@ -1,6 +1,7 @@
 import os
 from typing import Any
 
+
 def list_mp3_files(folder_path: str) -> list[str]:
     """
     Lists all MP3 files in the specified folder and its subfolders.
@@ -14,6 +15,6 @@ def list_mp3_files(folder_path: str) -> list[str]:
     mp3_files = []
     for root, _, files in os.walk(folder_path):
         for file in files:
-            if file.lower().endswith('.mp3'):
+            if file.lower().endswith(".mp3"):
                 mp3_files.append(os.path.join(root, file))
     return mp3_files

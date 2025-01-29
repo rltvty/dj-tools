@@ -6,6 +6,7 @@ from datetime import datetime
 
 import hashlib
 
+
 def md5(data: bytes | None) -> str:
     """
     Create an MD5 hash from binary data.
@@ -16,7 +17,7 @@ def md5(data: bytes | None) -> str:
     if data is None:
         return ""
     md5_hash = hashlib.md5()  # Create an MD5 hash object
-    md5_hash.update(data)     # Update the hash object with the binary data
+    md5_hash.update(data)  # Update the hash object with the binary data
     return md5_hash.hexdigest()  # Return the hash as a hexadecimal string
 
 
@@ -25,7 +26,7 @@ class VersionHistory:
         self.history_dir = Path(history_dir)
         self.history_dir.mkdir(parents=True, exist_ok=True)
         self.history: pd.DataFrame | None = self._load_existing_history()
-        self.new_data: list[dict[str,Any]] = []
+        self.new_data: list[dict[str, Any]] = []
 
     def _load_existing_history(self) -> pd.DataFrame | None:
         """Load all existing Parquet files and combine them into a single DataFrame."""
@@ -34,14 +35,14 @@ class VersionHistory:
             return None
         files.sort()
         print("Loading files in this order:")
-        for file in files: 
+        for file in files:
             print(f"\t{file}")
         return pd.concat([pd.read_parquet(file) for file in files], ignore_index=True)
 
     def _get_current_versions(self, id: str) -> list[dict[str, Any]]:
         if self.history is None:
             return []
-        
+
         # Filter rows by the id
         filtered_rows = self.history[self.history["id"] == id].reset_index()
         # Convert rows to dictionaries and replace NaN with None
@@ -49,7 +50,7 @@ class VersionHistory:
             {k: (None if pd.isna(v) else v) for k, v in row.items()}
             for row in filtered_rows.to_dict(orient="records")
         ]
-    
+
     def convert_metadata(self, metadata: dict[str, Any]) -> dict[str, Any]:
         """Reformats metadata for history comparison."""
         item = {}
@@ -63,7 +64,7 @@ class VersionHistory:
             else:
                 item[k] = v
         return item
-    
+
     def _str_equals(self, one: dict[str, Any], two: dict[str, Any]) -> bool:
         if one.keys() != two.keys():
             print("keys don't match")
@@ -73,10 +74,10 @@ class VersionHistory:
                 print("values don't match")
                 return False
         return True
-    
+
     def get_create_version(self, item: dict[str, Any]) -> tuple[bool, int]:
-        """Gets or creates a new version for the item. 
-        
+        """Gets or creates a new version for the item.
+
         Returns:
            (True, #) if its a new version
            (False, #) if its an existing version
@@ -91,7 +92,7 @@ class VersionHistory:
                 return (False, v)
         new_v = len(current_versions) + 1
         return (True, new_v)
-    
+
     def add_new_version(self, item: dict[str, Any]) -> None:
         self.new_data.append(item)
 
@@ -109,5 +110,41 @@ class VersionHistory:
         return True
 
 
-{'duration': '6:28', 'file': 'Pastiche - It-s Wavy (Original Mix).mp3', 'id': 'esp-8e0f18e7', 'title': "It's Wavy (Original Mix)", 'artist': 'Pastiche', 'album': 'Black Lights EP', 'genre': 'Minimal / Deep Tech', 'label': 'Phobos Records', 'file_type': 'MP3', 'release_date': '2021-02-08', 'starting_key': '4B', 'user_comment': 'LYRICS from 3, fun, bouncy, start out at 6', 'user_comment_2': 'Purchased at Traxsource.com', 'bpm': '125', 'stars': 4, 'cover_art_md5': 'b473b4ef7e1f774b310cd410458dba89', 'additional_artists': 'AQUO'}
-{'duration': '6:28', 'file': 'Pastiche - It-s Wavy (Original Mix).mp3', 'id': 'esp-8e0f18e7', 'title': "It's Wavy (Original Mix)", 'artist': 'Pastiche', 'album': 'Black Lights EP', 'genre': 'Minimal / Deep Tech', 'label': 'Phobos Records', 'file_type': 'MP3', 'release_date': '2021-02-08', 'starting_key': '4B', 'user_comment': 'LYRICS from 3, fun, bouncy, start out at 6', 'user_comment_2': 'Purchased at Traxsource.com', 'bpm': '125', 'stars': 4, 'cover_art_md5': 'b473b4ef7e1f774b310cd410458dba89', 'additional_artists': 'AQUO'}
+{
+    "duration": "6:28",
+    "file": "Pastiche - It-s Wavy (Original Mix).mp3",
+    "id": "esp-8e0f18e7",
+    "title": "It's Wavy (Original Mix)",
+    "artist": "Pastiche",
+    "album": "Black Lights EP",
+    "genre": "Minimal / Deep Tech",
+    "label": "Phobos Records",
+    "file_type": "MP3",
+    "release_date": "2021-02-08",
+    "starting_key": "4B",
+    "user_comment": "LYRICS from 3, fun, bouncy, start out at 6",
+    "user_comment_2": "Purchased at Traxsource.com",
+    "bpm": "125",
+    "stars": 4,
+    "cover_art_md5": "b473b4ef7e1f774b310cd410458dba89",
+    "additional_artists": "AQUO",
+}
+{
+    "duration": "6:28",
+    "file": "Pastiche - It-s Wavy (Original Mix).mp3",
+    "id": "esp-8e0f18e7",
+    "title": "It's Wavy (Original Mix)",
+    "artist": "Pastiche",
+    "album": "Black Lights EP",
+    "genre": "Minimal / Deep Tech",
+    "label": "Phobos Records",
+    "file_type": "MP3",
+    "release_date": "2021-02-08",
+    "starting_key": "4B",
+    "user_comment": "LYRICS from 3, fun, bouncy, start out at 6",
+    "user_comment_2": "Purchased at Traxsource.com",
+    "bpm": "125",
+    "stars": 4,
+    "cover_art_md5": "b473b4ef7e1f774b310cd410458dba89",
+    "additional_artists": "AQUO",
+}

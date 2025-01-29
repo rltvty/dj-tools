@@ -17,15 +17,18 @@ def is_dark(image_data: bytes, threshold: float = 100.0) -> bool:
     """
     # Load the image from binary data
     image = Image.open(BytesIO(image_data)).convert("RGB")
-    
+
     # Convert to a NumPy array for pixel-level manipulation
     pixels = np.array(image)
-    
+
     # Calculate perceived brightness for each pixel
-    brightness = 0.299 * pixels[..., 0] + 0.587 * pixels[..., 1] + 0.114 * pixels[..., 2]
+    brightness = (
+        0.299 * pixels[..., 0] + 0.587 * pixels[..., 1] + 0.114 * pixels[..., 2]
+    )
     avg_brightness = brightness.mean()
 
     return avg_brightness < threshold
+
 
 def lighten_image(image_data: bytes, factor: float = 1.5) -> bytes:
     """
@@ -40,17 +43,18 @@ def lighten_image(image_data: bytes, factor: float = 1.5) -> bytes:
     """
     # Load the image from binary data
     image = Image.open(BytesIO(image_data))
-    
+
     # Enhance the brightness
     enhancer = ImageEnhance.Brightness(image)
     lightened_image = enhancer.enhance(factor)
-    
+
     # Save the lightened image to a BytesIO object
     lightened_data = BytesIO()
     lightened_image.save(lightened_data, format=image.format)
     lightened_data.seek(0)
 
     return lightened_data.getvalue()
+
 
 # Generate QR code for text
 def generate_qr_code(text: str, size: int = 256) -> BytesIO:
@@ -64,14 +68,14 @@ def generate_qr_code(text: str, size: int = 256) -> BytesIO:
     Returns:
         BytesIO: A file-like object containing the QR code image.
     """
-    # Version 4 (33x33 grid) with error correction H 
+    # Version 4 (33x33 grid) with error correction H
     # Max of 50 alpha-numeric characters
     # see: https://www.qrcode.com/en/about/version.html
     qr = qrcode.QRCode(
-        version=4,  
+        version=4,
         error_correction=qrcode.constants.ERROR_CORRECT_H,
         box_size=10,  # Base size of each box in the QR code
-        border=4      # Minimum border size (default is 4)
+        border=0,  # Minimum border size (default is 4)
     )
     qr.add_data(text[:49])
     qr.make(fit=True)
