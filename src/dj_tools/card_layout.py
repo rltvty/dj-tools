@@ -1,4 +1,5 @@
 from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import mm
 from reportlab.pdfgen.canvas import Canvas
 from reportlab.lib.utils import ImageReader, simpleSplit
 from reportlab.lib import colors
@@ -15,9 +16,9 @@ from .image_manipulation import (
 )
 
 PAGE_WIDTH, PAGE_HEIGHT = A4
-CARD_WIDTH = PAGE_WIDTH / 2
-CARD_HEIGHT = PAGE_HEIGHT / 2
-
+UNPRINTABLE_BORDER = 8*mm
+CARD_WIDTH = (PAGE_WIDTH / 2) - (UNPRINTABLE_BORDER * 2)
+CARD_HEIGHT = (PAGE_HEIGHT / 2) - (UNPRINTABLE_BORDER * 2)
 
 class CardLayout:
     def __init__(
@@ -46,7 +47,7 @@ class CardLayout:
             int: The number of lines used
         """
         value = self.card.get(field.field_name, "")
-        if not value and field.field_name is not "datestamp":
+        if not value and field.field_name != "datestamp":
             return 0  # No text drawn
         
         if value == "Purchased at Traxsource.com":
