@@ -1,3 +1,4 @@
+import os
 from typing import Any
 
 from mutagen.mp3 import MP3
@@ -72,7 +73,7 @@ def extract_mp3_metadata(file_path: str) -> dict[str, Any]:
                 return None
             
             # Extract common metadata    
-            metadata["file"] = file_path
+            metadata["file"] = os.path.basename(file_path)
             metadata["id"] =  get_tag("TSRC") or get_tag("TXXX:ISRC")
             metadata["title"] = get_tag("TIT2")
             metadata["artist"] = get_tag("TPE1") or get_tag("TXXX:ALBUM ARTIST")

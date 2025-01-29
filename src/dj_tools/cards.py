@@ -1,3 +1,5 @@
+from datetime import datetime
+from dj_tools.version_history import VersionHistory
 from .utils import list_mp3_files
 
 from .field_layout import FieldLayout
@@ -49,6 +51,9 @@ def create_pdf_with_layout(output_path: str, cards: list[dict], layouts: list[Fi
         cards (list[dict]): List of metadata dictionaries for each card.
         layouts (list[FieldLayout]): Layout instructions for fields.
     """
+    if len(cards) == 0:
+        print("No new cards to output")
+        return
 
     pdf = canvas.Canvas(output_path, pagesize=A4)
 
@@ -94,33 +99,28 @@ def create_pdf_with_layout(output_path: str, cards: list[dict], layouts: list[Fi
 
 def main():
     files = list_mp3_files("/Users/epinzur/Desktop/Music/Traktor/")
-    all_keys = set()
+    history = VersionHistory("data/track_history")
     data = []
-    all_ids = set()
     for file in files:
-        # print()
-        # print(file)
 
         metadata = extract_mp3_metadata(file)
-        id = metadata.get("id")
-        if id in all_ids:
-            print(f"Duplicate id: {id} found for {metadata['title']}")
-        all_ids.add(id)
-
-        # print(f"{len(metadata["search"])}: '{metadata["search"]}'")
-
-        for key in sorted(metadata.keys()):
-            if key in ["cover_art"]:
-                continue
-            all_keys.add(key)
-            # print(f"\t{key}: {metadata[key]}")
-
         if metadata.get("stars", 0) < 4:
             continue
-        data.append(metadata)
+
+        item = history.convert_metadata(metadata)
+        (new, v) = history.get_create_version(item)
+        if new:
+            metadata["rev"] = v
+            item["rev"] = v
+            history.add_new_version(item)
+            data.append(metadata)
+
+    timestamp = datetime.now().strftime("%Y-%m-%d@%H:%M")
+
+    create_pdf_with_layout(f"new_cards_{timestamp}.pdf", data, field_layouts)
+
+    history.save_new_versions(timestamp)
+
     
-    exit()
 
-    create_pdf_with_layout("output_with_layout.pdf", data, field_layouts)
 
-    print(f"All metadata fields available: {all_keys}")
