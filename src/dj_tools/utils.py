@@ -14,6 +14,8 @@ def list_mp3_files(folder_path: str) -> list[str]:
     """
     mp3_files = []
     for root, _, files in os.walk(folder_path):
+        if "not printed" in root:
+            continue
         for file in files:
             if file.lower().endswith(".mp3"):
                 mp3_files.append(os.path.join(root, file))

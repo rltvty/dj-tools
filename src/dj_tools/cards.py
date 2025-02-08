@@ -56,10 +56,11 @@ field_layouts = [
     
     FieldLayout("rating", "front", x=right_edge - 2, y=top_text_line_y, justification="right", font="Helvetica", font_size=12),
     FieldLayout("key_bpm", "front", x=right_edge - 1, y=next_text_line_y, justification="right", font="Helvetica", font_size=10),
+    FieldLayout("duration", "front", x=center, y=next_text_line_y, justification="between:artist&key_bpm", font="Helvetica", font_size=10),
 
     FieldLayout("label", "front", x=left_edge, y=under_front_art, justification="left", font="Helvetica", font_size=9),
     FieldLayout("genre", "front", x=right_edge, y=under_front_art, justification="right", font="Helvetica", font_size=9),
-    FieldLayout("release_date", "front", x=center, y=under_front_art, justification="between_label_genre", font="Helvetica", font_size=9),
+    FieldLayout("release_date", "front", x=center, y=under_front_art, justification="between:label&genre", font="Helvetica", font_size=9),
 
     FieldLayout("user_comment", "front", x=left_edge, y=under_front_art - 20, justification="left", font="Helvetica", font_size=10, width=CARD_WIDTH * .5),
 
@@ -69,10 +70,11 @@ field_layouts = [
     
     FieldLayout("rating", "back", x=right_edge - 2, y=top_text_line_y, justification="right", font="Helvetica", font_size=12),
     FieldLayout("key_bpm", "back", x=right_edge - 1, y=next_text_line_y, justification="right", font="Helvetica", font_size=10),
+    FieldLayout("duration", "back", x=center, y=next_text_line_y, justification="between:artist&key_bpm", font="Helvetica", font_size=10),
 
     FieldLayout("label", "back", x=left_edge, y=under_back_art, justification="left", font="Helvetica", font_size=9),
     FieldLayout("genre", "back", x=right_edge, y=under_back_art, justification="right", font="Helvetica", font_size=9),
-    FieldLayout("release_date", "back", x=center, y=under_back_art, justification="between_label_genre", font="Helvetica", font_size=9),
+    FieldLayout("release_date", "back", x=center, y=under_back_art, justification="between:label&genre", font="Helvetica", font_size=9),
 
     FieldLayout("user_comment", "back", x=left_edge, y=under_back_art - 40, justification="left", font="Helvetica", font_size=14, width=CARD_WIDTH * .9),
     FieldLayout("user_comment_2", "back", x=left_edge, y=under_back_art - 80, justification="left", font="Helvetica", font_size=14, width=CARD_WIDTH * .9),
@@ -155,14 +157,14 @@ def create_pdf_with_layout(output_path: str, cards: list[dict], layouts: list[Fi
 
 
 def main():
-    files = list_mp3_files("/Users/epinzur/Desktop/Music/Traktor/")
+    files = list_mp3_files("/Users/epinzur/Desktop/Music/Traktor/dnb")
     history = VersionHistory("data/track_history")
     data = []
     for file in files:
 
         metadata = extract_mp3_metadata(file)
-        if metadata.get("stars", 0) < 4:
-            continue
+        # if metadata.get("stars", 0) < 4:
+        #     continue
 
         if not metadata.get("cover_art"):
             continue

@@ -50,7 +50,7 @@ class CardLayout:
         if not value and field.field_name != "datestamp":
             return 0  # No text drawn
         
-        if value == "Purchased at Traxsource.com":
+        if value in ["Purchased at Traxsource.com", "Purchased at Beatport.com", "Purchased at Beatport"]:
             return 0
 
         value = f"{field.prefix}{value}"
@@ -77,10 +77,11 @@ class CardLayout:
                 draw_x = text_x - text_width / 2
             elif field.justification == "left":
                 draw_x = text_x
-            elif field.justification.startswith("between_"):
-                between = field.justification.split("_")
-                left = self.inner_widths[between[1]]
-                right = self.inner_widths[between[2]]
+            elif field.justification.startswith("between:"):
+                between = field.justification.split(":")[1]
+                between = between.split("&")
+                left = self.inner_widths[between[0]]
+                right = self.inner_widths[between[1]]
                 draw_x = (left + right - text_width) / 2
 
             self.pdf.drawString(draw_x, text_y, line)
